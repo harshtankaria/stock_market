@@ -1,0 +1,153 @@
+import yfinance as yf
+import datetime
+
+# Fetch data from Yahoo Finance
+def fetch_stock_data(ticker, start_date, end_date):
+    try:
+        stock = yf.download(ticker, start=start_date, end=end_date, progress=False)
+        if stock.empty:
+            raise ValueError("No data returned from Yahoo Finance.")
+        print("Columns in DataFrame:", stock.columns.tolist())
+        if ('Close', ticker) not in stock.columns:
+            raise ValueError(f"Expected 'Close' column for {ticker} not found in data.")
+        data = [{"Date": index, "Close": float(row[('Close', ticker)])} for index, row in stock.iterrows()]
+        print(f"Data fetched successfully for {ticker}! Rows: {len(data)}")
+        return data
+    except Exception as e:
+        print(f"Error fetching data for {ticker}: {e}")
+        raise SystemExit
+
+# Simple moving average calculation with future prediction
+def moving_average_with_future(data, window=20, future_days=5):
+    closes = [entry["Close"] for entry in data]
+    predictions = [0.0] * (len(closes) + future_days)  # Extend list for future days
+    
+    # Calculate SMA for historical data
+    for i in range(window - 1, len(closes)):
+        window_sum = sum(closes[i - window + 1:i + 1])
+        predictions[i] = window_sum / window
+    
+    # Extrapolate SMA for future days
+    last_date = data[-1]["Date"]
+    for i in range(len(closes), len(closes) + future_days):
+        # Use the last window of historical data to predict forward
+        window_sum = sum(closes[-window:]) if i == len(closes) else sum(predictions[i - window:i])
+        predictions[i] = window_sum / window
+    
+    # Generate future dates
+    future_dates = [last_date + datetime.timedelta(days=i) for i in range(1, future_days + 1)]
+    return predictions, future_dates
+
+# Calculate basic metrics (MAE and RMSE) for historical data only
+def calculate_metrics(actual, predicted):
+    n = len(actual)
+    if n != len(predicted) or n == 0:
+        return 0.0, 0.0
+    mae = sum(abs(actual[i] - predicted[i]) for i in range(n)) / n
+    rmse = (sum((actual[i] - predicted[i]) ** 2 for i in range(n)) / n) ** 0.5
+    return mae, rmse
+
+# Main execution
+print("Starting execution...")
+
+# Fetch real data from Yahoo Finance up to the current date
+ticker = "POWERGRID.NS"
+start = datetime.datetime(2023, 1, 1)
+end = datetime.datetime(2025, 3, 21)  # Current date as of your context
+try:
+    data = fetch_stock_data(ticker, start, end)
+except SystemExit:
+    print(f"Failed to fetch data for {ticker} from Yahoo Finance.")
+    exit()
+
+# Generate predictions including future
+future_days = 5  # Predict 5 days into the future
+predictions, future_dates = moving_average_with_future(data, window=20, future_days=future_days)
+
+# Train-test split for historical data (80% train, 20% test)
+train_size = int(len(data) * 0.8)
+train_data = data[:train_size]
+test_data = data[train_size:]
+train_actual = [entry["Close"] for entry in train_data]
+test_actual = [entry["Close"] for entry in test_data]
+train_pred = predictions[:train_size]
+test_pred = predictions[train_size:len(data)]  # Up to end of historical data
+
+# Calculate metrics for historical data
+train_mae, train_rmse = calculate_metrics(train_actual, train_pred)
+test_mae, test_rmse = calculate_metrics(test_actual, test_pred)
+
+print(f"\nMoving Average Prediction Metrics for {ticker} (Historical Data):")
+print(f"Train MAE: {train_mae:.4f}, RMSE: {train_rmse:.4f}")
+print(f"Test MAE: {test_mae:.4f}, RMSE: {test_rmse:.4f}")
+
+# Display last 5 historical predictions
+print(f"\nLast 5 Historical Predictions for {ticker}:")
+for i in range(max(len(test_data) - 5, 0), len(test_data)):
+    print(f"Date: {test_data[i]['Date'].date()}, Actual: {test_data[i]['Close']}, Predicted: {test_pred[i]}")
+
+# Display future predictions
+print(f"\nFuture Predictions for {ticker} (Next {future_days} Days):")
+future_preds = predictions[len(data):]
+for i in range(future_days):
+    print(f"Date: {future_dates[i].date()}, Predicted: {future_preds[i]}")
+
+# Buy/Sell Recommendation based on last historical and first future prediction
+last_actual = test_data[-1]["Close"]
+last_pred = test_pred[-1]  # Last historical prediction
+next_pred = future_preds[0]  # First future prediction
+trend = 1 if next_pred > last_pred else -1 if next_pred < last_pred else 0
+recommendation = "Buy" if trend > 0 and next_pred > last_actual else "Sell" if trend < 0 else "Hold"
+print(f"\nRecommendation for {ticker} based on future trend: {recommendation}")
+
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+# 📌 Summary of the Output of Your Code:
+# Fetch Stock Data
+
+# Downloads historical stock data for POWERGRID.NS from Yahoo Finance (Jan 1, 2023 - Mar 21, 2025).
+
+# Extracts the Close prices and converts them into a structured format.
+
+# Calculate Moving Average Predictions
+
+# Computes a 20-day Simple Moving Average (SMA) for past data.
+
+# Predicts the next 5 days using the SMA trend.
+
+# Train-Test Evaluation (Historical Data Only)
+
+# Splits the historical data 80% (train) - 20% (test).
+
+# Calculates Mean Absolute Error (MAE) and Root Mean Square Error (RMSE) for both train & test sets.
+
+# Displays Predictions:
+
+# Last 5 historical predictions (compares actual vs predicted close prices).
+
+# Future 5-day predictions (predicted stock prices for the next 5 days).
+
+# Generates Buy/Sell Recommendation:
+
+# Compares the last historical predicted price with the next predicted price.
+
+# Recommends "Buy" if the trend is upward, "Sell" if downward, else "Hold".
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
